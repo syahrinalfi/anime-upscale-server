@@ -1,0 +1,4 @@
+.env
+# Model weights are downloaded by each user (see README), never committed
+models/
+__pycache__/

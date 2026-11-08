@@ -1,0 +1,21 @@
+services:
+  upscale-server:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - UPSCALE_TOKEN=${UPSCALE_TOKEN:-}
+      # Only needed to override the default paths in app/inference.py's MODEL_CONFIGS -
+      # uncomment if you rename the weight files under ./models.
+      # - HFA2K_MODEL_PATH=/models/2x-HFA2k-LUDVAE-SPAN.pth
+      # - ANIMESHARP_MODEL_PATH=/models/2x-AnimeSharpV4-Fast-RCAN-PU.safetensors
+    volumes:
+      - ./models:/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
