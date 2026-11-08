@@ -9,6 +9,11 @@ from PIL import Image
 from . import inference
 
 AUTH_TOKEN = os.environ.get("UPSCALE_TOKEN", "")
+# Request limits, so one oversized upload can't exhaust memory or tie up the GPU. On a 6GB
+# card, inputs above ~2.5 megapixels overflow VRAM into system memory and slow from ~2s to
+# a minute or more. Raise MAX_PIXELS on a GPU with more VRAM.
+MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", 20 * 1024 * 1024))
+MAX_PIXELS = int(os.environ.get("MAX_PIXELS", 2_500_000))
 
 app = FastAPI(title="anime-upscale-server")
 
@@ -43,9 +48,27 @@ async def upscale(
     if model not in inference.available_models():
         raise HTTPException(status_code=400, detail=f"unknown model '{model}', available: {inference.available_models()}")
 
-    body = await request.body()
+    too_large = HTTPException(status_code=413, detail=f"request body over {MAX_BODY_BYTES} bytes")
+    if int(request.headers.get("content-length") or 0) > MAX_BODY_BYTES:
+        raise too_large
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > MAX_BODY_BYTES:
+            raise too_large
+
     try:
-        img = Image.open(io.BytesIO(body)).convert("RGB")
+        img = Image.open(io.BytesIO(body))  # lazy: reads the header only, no pixel decode yet
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"could not decode image: {e}")
+    width, height = img.size
+    if width * height > MAX_PIXELS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"image is {width}x{height} ({width * height} pixels), over the {MAX_PIXELS}-pixel limit",
+        )
+    try:
+        img = img.convert("RGB")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"could not decode image: {e}")
 

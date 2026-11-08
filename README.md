@@ -64,7 +64,9 @@ curl -X POST "http://localhost:8000/upscale?model=hfa2k" \
 
 - `model`: `hfa2k` (default) or `animesharp`.
 - `X-Upscale-Token`: only needed if `UPSCALE_TOKEN` is set.
-- Errors: `400` for an unknown model or an image that can't be decoded, `401` for a wrong token.
+- Errors: `400` for an unknown model or an image that can't be decoded, `401` for a wrong token, `413` for a request over the size limits below.
+
+**Size limits.** Requests over 20 MB or images over 2.5 megapixels (for example 1300×1900) are rejected. On a 6 GB card, larger inputs overflow GPU memory into system memory and take a minute or more while blocking other requests. A typical 1060×1500 page is about 1.6 megapixels. On a GPU with more VRAM, raise the limits with the `MAX_PIXELS` and `MAX_BODY_BYTES` environment variables in `docker-compose.yml`.
 
 Requests are processed one at a time on the GPU. The first request per model after startup pays a one-time cuDNN warm-up of about 1.5–2 s.
 
